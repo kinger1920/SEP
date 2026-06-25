@@ -1,0 +1,355 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+% ---------------------------------------------------------------
+% Page geometry matching the specification:
+%   text area: 6.875in wide x 8.875in high
+%   columns:   3.25in wide, 0.3125in gap
+%   top margin: 1in; bottom margin: 1.125in (letter)
+% ---------------------------------------------------------------
+\usepackage[
+  letterpaper,
+  top=1in,
+  bottom=1.125in,
+  left=0.8125in,
+  right=0.8125in,
+  columnsep=0.3125in
+]{geometry}
+
+\usepackage{times}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{colortbl}
+
+% ---------------------------------------------------------------
+% Page numbers: centered, 0.75in from bottom
+% Remove \pagestyle{fancy} block for camera-ready
+% ---------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\cfoot{\thepage}
+\setlength{\footskip}{0.375in}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue,
+  citecolor=black
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------------------------------------------------------------
+% Title block
+% ---------------------------------------------------------------
+\title{
+  \vspace{-0.5cm}
+  \textbf{Animal Breed Classification: Preliminary Report}
+}
+
+\author{
+  Arvin Effat \quad Hanna Kasi \quad Jue Li \quad Yannick Radulescu \\[2pt]
+  Ludwig-Maximilians-Universität München \\[2pt]
+  \texttt{\{Ar.Effat, Ha.Kasi, Jue.Li, Y.Radulescu\}@campus.lmu.de}
+}
+
+\date{}
+
+% ---------------------------------------------------------------
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+% ---------------------------------------------------------------
+\begin{abstract}
+This preliminary report presents our literature research, dataset evaluation, and coarse system plan for a cat and dog breed classifier. The system must identify 10 cat breeds and 10 dog breeds from an input image, or return $-1$ if no recognizable animal is detected. We adopt a two-stage pipeline: a YOLO detector for localization, followed by a CNN classifier trained from random initialization. Grad-CAM is used post-training for explainability.
+\end{abstract}
+
+% ---------------------------------------------------------------
+\section{Introduction}
+
+Fine-grained animal breed recognition is a challenging computer vision problem: breeds within the same species share overall body structure and differ only in subtle coat patterns, facial proportions, and body shape. Our task requires classifying images into exactly 20 classes (10 cat breeds, 10 dog breeds) or rejecting images that contain no target animal.
+
+We formulate the problem as a two-stage pipeline. In the first stage, a pretrained YOLO detector localizes the primary animal in the image. In the second stage, a CNN classifier, trained from scratch on the cropped detection, predicts the breed. A confidence threshold gates the final output; predictions below the threshold result in a $-1$ reject response.
+
+% ---------------------------------------------------------------
+\section{Literature Research}
+
+\subsection{Detection Backbone}
+
+\textbf{YOLO for Animal Phenotyping~\cite{yolo_animal_2025}.}
+A 2025 survey systematically reviews YOLO as an efficient detection backbone across animal-related computer vision tasks, covering data preprocessing, application areas, and future directions. The survey confirms YOLO as a well-validated and computationally efficient choice for our detection stage. We restrict detectable classes to cats and dogs only, suppressing all other YOLO output classes to reduce false positives and inference overhead.
+
+\subsection{Classification Approaches Considered}
+
+\textbf{GCViT for Fine-Grained Cat Breed Recognition~\cite{gcvit_2026}.}
+A pretrained Global Context Vision Transformer (GCViT) takes the full animal image as input and classifies the breed, attending simultaneously to local features and global image context. Extensive data augmentation (rotation, horizontal flip, brightness adjustment) is used to improve generalization. The GCViT-Tiny model achieves 92.00\% test accuracy and 94.54\% validation accuracy on a cat breed benchmark. Although simpler to implement and yielding strong results, the approach does not explicitly localize discriminative body parts. We considered this architecture but did not adopt it, preferring a detect-then-classify pipeline that explicitly crops the animal.
+
+\textbf{Multi-Stage Vision Transformer~\cite{transfg_2021}.}
+This architecture processes the image in three stages: (1)~\textit{Main stage} — a ViT encoder extracts attention maps and generates a bounding box via object localization; full-image features are used for classification. (2)~\textit{Object stage} — the cropped animal region provides object-level features for classification. (3)~\textit{Parts stage} — discriminative region crops derived from attention maps are passed as independent inputs. The approach performs well on visually similar breeds but carries higher computational cost and architectural complexity. We did not adopt it for the same reasons.
+
+\textbf{Modified VGG-16 Pipeline~\cite{vgg16_github}.}
+This open-source project implements a two-stage classification system closely aligned with our intended architecture: a first model determines whether the input is a cat or dog; a second (or third) model then classifies the breed. This reference validates our pipeline design and serves as an implementation reference.
+
+\subsection{Explainability}
+
+\textbf{Grad-CAM~\cite{gradcam_matlab,gradcam_omnixai}.}
+Gradient-weighted Class Activation Mapping visualizes the image regions that most influence a network's classification decision. We apply Grad-CAM after training to verify that the model focuses on anatomically relevant features (coat texture, facial structure, ear shape) rather than background artifacts. The procedure is described in detail in Section~\ref{sec:explainability}.
+
+% ---------------------------------------------------------------
+\section{Data Research}
+
+\subsection{Target Classes}
+
+The classifier must distinguish the following 20 classes. Cat breeds are assigned labels 0--9 and dog breeds 10--19.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Target class indices and breed names.}
+\label{tab:classes}
+\begin{tabular}{cll}
+\toprule
+\textbf{Index} & \textbf{Breed} & \textbf{Species} \\
+\midrule
+0  & Abyssinian        & Cat \\
+1  & Bengal            & Cat \\
+2  & Birman            & Cat \\
+3  & Bombay            & Cat \\
+4  & British Shorthair & Cat \\
+5  & Maine Coon        & Cat \\
+6  & Ragdoll           & Cat \\
+7  & Sphynx            & Cat \\
+8  & Tabby             & Cat \\
+9  & Tiger Cat         & Cat \\
+\midrule
+10 & Beagle            & Dog \\
+11 & Pug               & Dog \\
+12 & Boxer             & Dog \\
+13 & Shiba Inu         & Dog \\
+14 & Samoyed           & Dog \\
+15 & Golden Retriever  & Dog \\
+16 & German Shepherd   & Dog \\
+17 & Siberian Husky    & Dog \\
+18 & Dalmatian         & Dog \\
+19 & Rottweiler        & Dog \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dataset Evaluation}
+
+We evaluated three public datasets against the target class list. Each dataset was assessed for class coverage, image count and balance, image quality, and availability of out-of-distribution samples for the reject class.
+
+\subsubsection{AtharvaTaras/Dog-Breeds-Dataset}
+
+\textbf{Source:}~\url{github.com/AtharvaTaras/Dog-Breeds-Dataset}
+
+\textbf{Description:} A dataset of images for dog breeds recognized by the Fédération Cynologique Internationale (FCI). We extracted only the 10 target breeds from the full collection.
+
+\textbf{Coverage:} All 10 target dog breeds are present. No cat breeds are included.
+
+\textbf{Size and balance:} The extracted subset contains 35 images per class (350 images total). Classes are perfectly balanced. The full dataset contains additional FCI breeds not in our target set, which can serve as out-of-distribution reject-class examples.
+
+\textbf{Image variety:} Images show dogs in varied settings: different backgrounds, foreground/background compositions, and body poses (standing, lying, running). Lighting and viewpoint vary across samples.
+
+\textbf{Quality:} No false labels, duplicates, blurry images, watermarks, or corrupt files were detected.
+
+\subsubsection{Cat Breeds Dataset (ma7555)}
+
+\textbf{Source:}~\url{kaggle.com/datasets/ma7555/cat-breeds-dataset}
+
+\textbf{Description:} A large Petfinder-style dataset with rich per-image metadata (age, gender, size, coat length) spanning 67 breed categories.
+
+\textbf{Coverage:} Abyssinian, Bengal, and Bombay are present with sufficient images. Tabby and Tiger Cat are not cleanly labeled as separate classes; they must be filtered from broader categories such as ``Domestic Shorthair'' and ``Tuxedo,'' which requires manual label verification.
+
+\textbf{Size and balance:} 70,899 images across 67 breeds. Class distribution is highly unbalanced; the target classes will require careful sampling or reweighting.
+
+\textbf{Image variety:} Good variety in backgrounds, poses, and contexts, comparable to the dog dataset.
+
+\textbf{Quality:} Confirmed presence of false labels, duplicate images, blurry images, and watermarks. A cleaning pipeline is required before training.
+
+\textbf{Reject class:} The 57 non-target breeds provide a natural source of reject-class examples.
+
+\subsubsection{Cats \& Dogs Breeds --- Oxford-style (zippyz)}
+
+\textbf{Source:}~\url{kaggle.com/datasets/zippyz/cats-and-dogs-breeds-classification-oxford-dataset}
+
+\textbf{Description:} A dataset modeled on the Oxford-IIIT Pet benchmark, containing 12 cat breeds and 25 dog breeds (37 classes total), with images that contain bounding-box annotations for the primary subject.
+
+\textbf{Coverage:}
+\begin{itemize}[leftmargin=*, topsep=2pt, itemsep=1pt]
+  \item \textit{Cats (8/10 covered):} Abyssinian, Bengal, Birman, Bombay, British Shorthair, Maine Coon, Ragdoll, and Sphynx are present. \textbf{Tabby} and \textbf{Tiger Cat} are absent and must be sourced elsewhere.
+  \item \textit{Dogs (10/10 covered):} All 10 target dog breeds are present.
+\end{itemize}
+
+\textbf{Size and balance:} Approximately 200 images per class; total around 7,400. Some imbalance exists across classes.
+
+\textbf{Quality:} No false labels, duplicates, blurry images, watermarks, or corrupt files detected.
+
+\textbf{Reject class:} The 17 non-target breeds (4 cat, 13 dog) provide clean out-of-distribution examples.
+
+\subsection{Dataset Summary}
+
+Table~\ref{tab:datasets} summarizes the three datasets across the key evaluation criteria.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Dataset comparison across key criteria.}
+\label{tab:datasets}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Criterion} & \textbf{[D1]} & \textbf{[D2]} & \textbf{[D3]} \\
+\midrule
+Species       & Dog  & Cat  & Both \\
+Images (total)& 350+ & 70k+ & $\sim$7,400 \\
+Balanced      & \checkmark & $\times$ & $\sim$ \\
+All 10 dogs   & \checkmark & ---  & \checkmark \\
+All 10 cats   & ---  & partial & 8/10 \\
+Reject data   & \checkmark & \checkmark & \checkmark \\
+Quality issues& None & Several & None \\
+\bottomrule
+\end{tabular}
+\end{table}
+\noindent\small [D1] AtharvaTaras/Dog-Breeds-Dataset \quad
+[D2] ma7555/cat-breeds-dataset \quad
+[D3] zippyz Oxford-style
+
+\medskip
+The Oxford-style dataset and the dog-breeds dataset are the primary sources. The ma7555 cat dataset will supplement the two missing cat classes (Tabby, Tiger Cat) after a cleaning pass.
+
+% ---------------------------------------------------------------
+\section{System Design}
+
+\subsection{Inference Pipeline}
+\label{sec:pipeline}
+
+The inference pipeline consists of six steps:
+
+\begin{enumerate}[leftmargin=*, topsep=2pt, itemsep=2pt]
+  \item \textbf{Resize and normalize.} The input image is resized and normalized to the format expected by the YOLO detector.
+
+  \item \textbf{YOLO detection.} YOLO detects cats and dogs (all other output classes are suppressed). If no animal is found, the pipeline returns $-1$ immediately.
+
+  \item \textbf{Primary subject selection.} When multiple animals are detected, only the bounding box with the largest area is retained. This heuristic assumes the main subject occupies the most space in the frame. Applied as a post-processing step if YOLO does not natively support it.
+
+  \item \textbf{Crop to bounding box.} Everything outside the selected bounding box is discarded. This removes background clutter and reduces irrelevant input to the classifier.
+
+  \item \textbf{CNN breed classification.} The cropped region is passed to the CNN, which outputs a class index $\in \{0, \ldots, 19\}$ and a confidence score.
+
+  \item \textbf{Confidence threshold.} If the confidence score is below the rejection threshold, the pipeline returns $-1$. Otherwise it returns the predicted class index.
+\end{enumerate}
+
+An optional step between steps 4 and 5 applies a Segment Anything (SAM) mask to isolate the animal foreground entirely, discarding the background within the bounding box. This step may improve accuracy for cluttered backgrounds but adds inference overhead and is therefore optional.
+
+\subsection{Candidate Architecture}
+
+\textbf{Detector:} We use a pretrained YOLO model with all output classes except \textit{cat} and \textit{dog} suppressed. YOLO is selected for its speed and its native ability to output bounding boxes for multiple animals in a single forward pass.
+
+\textbf{Classifier:} A convolutional neural network (CNN) trained from random initialization on the cropped bounding box images. No pretrained weights are used for the classifier. An optional attention module may be incorporated if the compute budget permits; a performance improvement is expected but not guaranteed, as attention mechanisms can also introduce optimization instabilities when training from scratch.
+
+\subsection{Training Strategy}
+
+\textbf{Optimizer:} Stochastic gradient descent (SGD) with momentum. SGD is commonly used for CNNs trained from scratch and is known to generalize well compared to adaptive methods such as Adam when training for many epochs~\cite{vgg16_github}.
+
+\textbf{Regularization:} Weight decay and a learning-rate scheduler are applied to reduce overfitting and stabilize convergence.
+
+\textbf{Loss function:} Cross-entropy loss with gradients computed via standard backpropagation.
+
+\textbf{Data augmentation:} Horizontal flip, rotation, and brightness adjustment are applied during training to increase effective dataset diversity. Color-based augmentation is used with care: for breeds whose primary visual identifier is coat color or pattern (e.g., Bombay, Dalmatian), color channels are preserved and not suppressed.
+
+\textbf{Data split:} The full training set is used for optimization. A validation set and a held-out test set are provided by the SEP course organizers and are used only for evaluation.
+
+% ---------------------------------------------------------------
+\section{Explainability}
+\label{sec:explainability}
+
+After training, Grad-CAM~\cite{gradcam_matlab} is applied to selected validation images to verify that the classifier focuses on anatomically relevant regions rather than background artifacts or spurious correlations.
+
+The procedure is as follows:
+
+\begin{enumerate}[leftmargin=*, topsep=2pt, itemsep=2pt]
+  \item Preprocess the image as the network expects (resize, normalize).
+  \item Perform a forward pass to obtain the class prediction.
+  \item Identify the last convolutional layer; this layer retains spatial information while encoding high-level semantic features.
+  \item Compute the gradients of the target class score with respect to each feature map in the last convolutional layer, then derive a scalar importance weight per feature map via global average pooling of the gradients.
+  \item Compute a weighted sum of the feature maps, applying a ReLU to retain only positively contributing activations. This produces a coarse spatial activation map.
+  \item Upsample the activation map to the input image resolution and overlay it as a heat map on the original image.
+\end{enumerate}
+
+Grad-CAM visualizations will be reported for representative correct predictions and failure cases to characterize model behavior qualitatively.
+
+% ---------------------------------------------------------------
+\section{Conclusion}
+
+This report describes our literature research, dataset evaluation, and coarse architecture plan for the SEP animal breed classifier. The proposed system uses YOLO for detection and a CNN trained from scratch for classification, with Grad-CAM for post-hoc explainability.
+
+Key open tasks include: (1) cleaning the ma7555 cat dataset and extracting Tabby and Tiger Cat samples; (2) scraping or generating additional images for underrepresented classes; (3) finalizing the CNN architecture and hyperparameter search; and (4) deciding whether to include the optional SAM segmentation step.
+
+% ---------------------------------------------------------------
+\begin{thebibliography}{99}
+
+\bibitem{yolo_animal_2025}
+Anonymous.
+\textit{A Review of You Only Look Once Algorithms in Animal Phenotyping Applications}.
+2025.
+
+\bibitem{gcvit_2026}
+Anonymous.
+\textit{Fine-Grained Cat Breed Recognition with Global Context Vision Transformer}.
+arXiv:2602.07534, 2026.
+
+\bibitem{transfg_2021}
+Anonymous.
+\textit{Multi-Stage Vision Transformer for Fine-Grained Recognition}.
+arXiv:2106.10587, 2021.
+
+\bibitem{vgg16_github}
+xigaoli.
+\textit{Modified VGG-16 Model for Animal Breed Classification}.
+\url{https://github.com/xigaoli/animal-breed-classification}, accessed 2025.
+
+\bibitem{gradcam_matlab}
+MathWorks.
+\textit{Grad-CAM Reveals the Why Behind Deep Learning Decisions}.
+MATLAB \& Simulink Documentation, 2024.
+
+\bibitem{gradcam_omnixai}
+Salesforce Research.
+\textit{Grad-CAM for Image Classification (PyTorch)}.
+OmniXAI Documentation, \url{https://opensource.salesforce.com/OmniXAI}, accessed 2025.
+
+\bibitem{dataset_oxford}
+zippyz.
+\textit{Cats and Dogs Breeds Classification Oxford Dataset}.
+\url{https://www.kaggle.com/datasets/zippyz/cats-and-dogs-breeds-classification-oxford-dataset},
+accessed 2025.
+
+\bibitem{dataset_cat}
+ma7555.
+\textit{Cat Breeds Dataset}.
+\url{https://www.kaggle.com/datasets/ma7555/cat-breeds-dataset},
+accessed 2025.
+
+\bibitem{dataset_dog}
+AtharvaTaras.
+\textit{Dog Breeds Dataset (FCI)}.
+\url{https://github.com/AtharvaTaras/Dog-Breeds-Dataset},
+accessed 2025.
+
+\end{thebibliography}
+
+\end{document}
