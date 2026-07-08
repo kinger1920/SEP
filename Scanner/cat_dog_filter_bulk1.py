@@ -5,12 +5,9 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 #Nur Katze / Hund
-
+#    python cat_dog_filter.py "C:\path\to\input_folder" "C:\path\to\output_folder"
 CAT_ID = 15
 DOG_ID = 16
-
-# Model weights: swap for your own trained/fine-tuned weights if you have them
-MODEL_PATH = "yolov8n.pt"
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -83,7 +80,7 @@ def process_folder(input_folder: str, output_folder: str, conf: float = 0.25):
     output_folder = Path(output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    model = YOLO(MODEL_PATH)
+    model = YOLO()
 
     image_paths = [
         p for p in sorted(input_folder.iterdir())
