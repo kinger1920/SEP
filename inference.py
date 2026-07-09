@@ -65,8 +65,51 @@ class Model(nn.Module):
     The placeholder below is a uniform random guesser so the script runs.
     """
 
+    def __init__(self):
+        from src.model import ConvolutionalNetwork
+        import torchvision.transforms as transforms
+        from ultralytics import YOLO
+        super().__init__()
+
+        self.classifier = ConvolutionalNetwork()
+
+        state_dict = torch.load("src/best_model.pth")
+        self.classifier.load_state_dict(state_dict)
+
+        # self.detector = YOLO("src/Scanner/yolo26n.pt")
+
+        self.classifier.eval()
+
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+
+
     def forward(self, image: Image.Image) -> int:
-        return random.randint(-1, NUM_CLASSES - 1)
+        import torch
+        from src.Scanner.cat_dog_filter1 import crop_cat_or_dog
+
+        # STUFE 1 & 2: YOLO Detektion & Zuschneiden
+        cropped_image = crop_cat_or_dog(image)
+        if cropped_image is None:
+            return -1
+
+        # STUFE 3: Klassifikation
+        input_tensor = self.transform(cropped_image).unsqueeze(0)
+
+        with torch.no_grad():
+            outputs = self.classifier(input_tensor)
+            probabilities = torch.softmax(outputs, dim=1)
+            confidence, prediction = torch.max(probabilities, dim=1)
+
+        # STUFE 4: Threshold
+        if confidence.item() < 0.70:
+            return -1
+
+        return int(prediction.item())
 
 
 if __name__ == "__main__":
@@ -79,11 +122,15 @@ if __name__ == "__main__":
 
     y_true, y_pred = [], []
     with torch.no_grad():
+        cap = 0
         for filename, label in tqdm(zip(df["filename"], df["label"]), total=len(df)):
+            if cap > 15:
+                break
             image = Image.open(args.image_folder / filename).convert("RGB")
             pred = model(image)
             y_true.append(int(label))
             y_pred.append(int(pred))
+            cap+=1
 
     labels = [REJECT] + list(range(NUM_CLASSES))
     target_names = ["reject(-1)"] + CLASSES
