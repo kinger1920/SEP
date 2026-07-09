@@ -14,10 +14,10 @@ train_df, val_df = train_test_split(
 df['split'] = 'train'
 df.loc[val_df.index, 'split'] = 'val'
 
-print("--- Verteilung im Trainingsset ---")
+print("Distribution in training set")
 print(df[df['split'] == 'train']['label'].value_counts())
 
-print("\n--- Verteilung im Validierungsset ---")
+print("\nDistribution in validation set")
 print(df[df['split'] == 'val']['label'].value_counts())
 
 df.to_csv('dataset_final_split.csv', index=False)
