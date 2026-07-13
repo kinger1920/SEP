@@ -122,15 +122,11 @@ if __name__ == "__main__":
 
     y_true, y_pred = [], []
     with torch.no_grad():
-        cap = 0
         for filename, label in tqdm(zip(df["filename"], df["label"]), total=len(df)):
-            if cap > 15:
-                break
             image = Image.open(args.image_folder / filename).convert("RGB")
             pred = model(image)
             y_true.append(int(label))
             y_pred.append(int(pred))
-            cap+=1
 
     labels = [REJECT] + list(range(NUM_CLASSES))
     target_names = ["reject(-1)"] + CLASSES
