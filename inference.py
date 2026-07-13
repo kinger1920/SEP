@@ -106,7 +106,7 @@ class Model(nn.Module):
             confidence, prediction = torch.max(probabilities, dim=1)
 
         # STUFE 4: Threshold
-        if confidence.item() < 0.70:
+        if confidence.item() < 0.20:
             return -1
 
         return int(prediction.item())
