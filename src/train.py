@@ -1,32 +1,39 @@
 import torch
 from tqdm import tqdm
+from torch.utils.data import random_split, DataLoader
 from src.model import ConvolutionalNetwork
-from src.dataset import get_dataloader
+from src.dataset import CustomImageDataset
 
-use_gpu = True
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
+model = ConvolutionalNetwork().to(device)
 
-model = ConvolutionalNetwork()
-
-optimizer = torch.optim.Adam(model.parameters(), eps=1e-4)
+# optimizer = torch.optim.Adam(model.parameters(), eps=1e-4)
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
 losses = []
 
-criterion = torch.nn.CrossEntropyLoss()
-train_loader = get_dataloader("../images/labels.csv", "../images")
+criterion = torch.nn.CrossEntropyLoss().to(device)
 
-if use_gpu:
-    model.cuda()
-    criterion.cuda()
 
-for epoch in tqdm(range(3), desc='Epoch'):
+# Load the dataset and split 80/20
+full_dataset = CustomImageDataset("../images/labels.csv", "../images")
+train_size = int(0.8 * len(full_dataset))
+val_size = len(full_dataset) - train_size
+
+generator = torch.Generator().manual_seed(42)
+train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size], generator=generator)
+
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+
+
+for epoch in tqdm(range(20), desc='Epoch'):
     for step, [example, label] in enumerate(tqdm(train_loader, desc='Batch')):
-        if use_gpu:
-            example = example.cuda()
-            label = label.cuda()
-
         optimizer.zero_grad()
 
-        example = example.view(-1, 3, 224, 224)
+        example = example.view(-1, 3, 224, 224).to(device)
+        label = label.to(device)
         prediction = model.forward(example)
 
         loss = criterion.forward(prediction, label)
@@ -36,33 +43,31 @@ for epoch in tqdm(range(3), desc='Epoch'):
         
         optimizer.step()
 
-    # Now validate on the whole test set
-    # TODO
-    # P.eval()
-    #
-    # total_loss = 0.0
-    # correct = 0
-    # total = 0
-    #
-    # for val_example, val_label in tqdm(val_loader, desc="Batch"):
-    #     if use_gpu:
-    #         val_example = val_example.cuda()
-    #         val_label = val_label.cuda()
-    #
-    #     val_example = val_example.view(-1, 3, 224, 224)
-    #
-    #     val_pred = P.forward(val_example)
-    #     total_loss += criterion.forward(val_pred, val_label).item()
-    #
-    #     _, predicted = torch.max(val_pred, dim=1)
-    #     total += val_label.size(0)
-    #     correct += (predicted == val_label).sum().item()
-    #
-    # epoch_val_loss = total_loss / total
-    # epoch_accuracy = 100 * correct / total
-    # print(f"Epoch {epoch + 1} summary -> Val Loss: {epoch_val_loss:.4f}, Val Accuracy: {epoch_accuracy:.2f}%")
-    #
-    # P.train()
+    # Now validate on the validation set
+    model.eval()
+
+    total_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for val_example, val_label in tqdm(val_loader, desc="Validation Batch"):
+
+            val_example = val_example.view(-1, 3, 224, 224).to(device)
+            val_label = val_label.to(device)
+
+            val_pred = model.forward(val_example)
+            total_loss += criterion.forward(val_pred, val_label).item()
+
+            _, predicted = torch.max(val_pred, dim=1)
+            total += val_label.size(0)
+            correct += (predicted == val_label).sum().item()
+
+    epoch_val_loss = total_loss / len(val_loader)
+    epoch_accuracy = 100 * correct / total
+    print(f"\nEpoch {epoch + 1} summary -> Val Loss: {epoch_val_loss:.4f}, Val Accuracy: {epoch_accuracy:.2f}%")
+
+    model.train()
 
 # plt.plot(losses)
 # plt.xlabel('Step')
