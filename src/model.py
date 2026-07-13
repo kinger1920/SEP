@@ -3,14 +3,11 @@ import torch.nn as nn
 
 class ConvolutionalNetwork(nn.Module):
     def __init__(self):
-        super().__init__()  # spatial dimension
-        # convolution block
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=(5, 5), padding=2,
-                               stride=1)
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=(5, 5), padding=2,stride=1)
         self.pool = nn.MaxPool2d(kernel_size=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=(5, 5), padding=0, stride=1)  # 112x112 -> 108x108
         self.pool2 = nn.MaxPool2d(kernel_size=2)
-        # fully connected block
         self.fc1 = nn.Linear(in_features=16 * 54 * 54, out_features=120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 20)
