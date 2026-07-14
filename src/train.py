@@ -77,4 +77,4 @@ for epoch in tqdm(range(num_epochs), desc='Epoch'):
 # plt.ylabel('Loss')
 # plt.show()
 
-torch.save(model.state_dict(), "best_model.pth")
+torch.save(model.state_dict(), "model_v2.pth")
