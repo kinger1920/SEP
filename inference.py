@@ -110,10 +110,10 @@ class Model(nn.Module):
 
         return int(prediction.item())
 
-
+#hier zum testen images mit Testing ausgetauscht
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image-folder", type=Path, default="images")
+    parser.add_argument("--image-folder", type=Path, default="Testing")
     args = parser.parse_args()
 
     df = pd.read_csv(args.image_folder / "labels.csv")
