@@ -19,7 +19,6 @@ metrics.
 """
 
 import argparse
-import random
 from pathlib import Path
 
 import pandas as pd
@@ -68,12 +67,12 @@ class Model(nn.Module):
     def __init__(self):
         from src.model import ConvolutionalNetwork
         import torchvision.transforms as transforms
-        from ultralytics import YOLO
         super().__init__()
 
-        self.classifier = ConvolutionalNetwork()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.classifier = ConvolutionalNetwork().to(self.device)
 
-        state_dict = torch.load("src/best_model.pth")
+        state_dict = torch.load("src/best_model.pth", map_location=self.device)
         self.classifier.load_state_dict(state_dict)
 
         # self.detector = YOLO("src/Scanner/yolo26n.pt")
@@ -98,7 +97,7 @@ class Model(nn.Module):
             return -1
 
         # STUFE 3: Klassifikation
-        input_tensor = self.transform(cropped_image).unsqueeze(0)
+        input_tensor = self.transform(cropped_image).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             outputs = self.classifier(input_tensor)
