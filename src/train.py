@@ -9,8 +9,10 @@ print(f"Using device: {device}")
 
 model = ConvolutionalNetwork().to(device)
 
-# optimizer = torch.optim.Adam(model.parameters(), eps=1e-4)
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+num_epochs = 20
+
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 losses = []
 
 criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -28,7 +30,7 @@ train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 
-for epoch in tqdm(range(20), desc='Epoch'):
+for epoch in tqdm(range(num_epochs), desc='Epoch'):
     for step, [example, label] in enumerate(tqdm(train_loader, desc='Batch')):
         optimizer.zero_grad()
 
@@ -68,6 +70,7 @@ for epoch in tqdm(range(20), desc='Epoch'):
     print(f"\nEpoch {epoch + 1} summary -> Val Loss: {epoch_val_loss:.4f}, Val Accuracy: {epoch_accuracy:.2f}%")
 
     model.train()
+    scheduler.step()
 
 # plt.plot(losses)
 # plt.xlabel('Step')
