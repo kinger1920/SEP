@@ -19,7 +19,6 @@ metrics.
 """
 
 import argparse
-import random
 from pathlib import Path
 
 import pandas as pd
@@ -65,13 +64,56 @@ class Model(nn.Module):
     The placeholder below is a uniform random guesser so the script runs.
     """
 
+    def __init__(self):
+        from src.model import ConvolutionalNetwork
+        import torchvision.transforms as transforms
+        super().__init__()
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.classifier = ConvolutionalNetwork().to(self.device)
+
+        state_dict = torch.load("src/best_model.pth", map_location=self.device)
+        self.classifier.load_state_dict(state_dict)
+
+        # self.detector = YOLO("src/Scanner/yolo26n.pt")
+
+        self.classifier.eval()
+
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+
+
     def forward(self, image: Image.Image) -> int:
-        return random.randint(-1, NUM_CLASSES - 1)
+        import torch
+        from src.Scanner.cat_dog_filter1 import crop_cat_or_dog
 
+        # STUFE 1 & 2: YOLO Detektion & Zuschneiden
+        cropped_image = crop_cat_or_dog(image)
+        if cropped_image is None:
+            return -1
 
+        # STUFE 3: Klassifikation
+        input_tensor = self.transform(cropped_image).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            outputs = self.classifier(input_tensor)
+            probabilities = torch.softmax(outputs, dim=1)
+            confidence, prediction = torch.max(probabilities, dim=1)
+
+        # STUFE 4: Threshold
+        if confidence.item() < 0.20:
+            return -1
+
+        return int(prediction.item())
+
+#hier zum testen images mit Testing ausgetauscht
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image-folder", type=Path, default="images")
+    parser.add_argument("--image-folder", type=Path, default="Testing")
     args = parser.parse_args()
 
     df = pd.read_csv(args.image_folder / "labels.csv")
