@@ -14,7 +14,12 @@ class ConvolutionalNetwork(nn.Module):
         self.conv4 = nn.Conv2d(32, 64, kernel_size=(3, 3), padding=1, stride=1)
         self.pool4 = nn.MaxPool2d(kernel_size=2)
         
-        self.fc1 = nn.Linear(in_features=64 * 13 * 13, out_features=120)
+        self.conv5 = nn.Conv2d(64, 128, kernel_size=(3, 3), padding=1, stride=1)
+        self.pool5 = nn.MaxPool2d(kernel_size=2)
+        self.conv6 = nn.Conv2d(128, 256, kernel_size=(3, 3), padding=1, stride=1)
+        self.pool6 = nn.MaxPool2d(kernel_size=2)
+        
+        self.fc1 = nn.Linear(in_features=256 * 3 * 3, out_features=120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 20)
         # activation function
@@ -30,6 +35,11 @@ class ConvolutionalNetwork(nn.Module):
         x = self.relu(self.pool3(x))
         x = self.relu(self.conv4(x))
         x = self.relu(self.pool4(x))
+        
+        x = self.relu(self.conv5(x))
+        x = self.relu(self.pool5(x))
+        x = self.relu(self.conv6(x))
+        x = self.relu(self.pool6(x))
         
         x = x.view(x.size(0), -1)
         x = self.relu(self.fc1(x))

@@ -9,7 +9,7 @@ print(f"Using device: {device}")
 
 model = ConvolutionalNetwork().to(device)
 
-num_epochs = 20
+num_epochs = 80
 
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
@@ -77,4 +77,4 @@ for epoch in tqdm(range(num_epochs), desc='Epoch'):
 # plt.ylabel('Loss')
 # plt.show()
 
-torch.save(model.state_dict(), "model_v2.pth")
+torch.save(model.state_dict(), "model_v3.pth")
