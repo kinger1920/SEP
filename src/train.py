@@ -9,7 +9,7 @@ print(f"Using device: {device}")
 
 model = ConvolutionalNetwork().to(device)
 
-num_epochs = 80
+num_epochs = 20
 
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
@@ -29,6 +29,8 @@ train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size], 
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
+state_dict = torch.load("model_v4.pth", map_location=device)
+model.load_state_dict(state_dict)
 
 for epoch in tqdm(range(num_epochs), desc='Epoch'):
     for step, [example, label] in enumerate(tqdm(train_loader, desc='Batch')):
@@ -77,4 +79,4 @@ for epoch in tqdm(range(num_epochs), desc='Epoch'):
 # plt.ylabel('Loss')
 # plt.show()
 
-torch.save(model.state_dict(), "model_v3.pth")
+torch.save(model.state_dict(), "model_v5.pth")
