@@ -1,0 +1,98 @@
+import torch
+import cv2
+import numpy as np
+import os
+from PIL import Image
+from torchvision import transforms
+
+from src.model import ConvolutionalNetwork
+
+class LayerActivations:
+    def __init__(self, model, target_layer):
+        self.model = model
+        self.target_layer = target_layer
+        self.activations = None
+        
+        self.hook_handle = self.target_layer.register_forward_hook(self.save_activation)
+
+    def save_activation(self, module, input, output):
+        self.activations = output.detach()
+
+    def remove_hook(self):
+        self.hook_handle.remove()
+
+    def get_activations(self, input_tensor):
+        self.model.eval()
+        with torch.no_grad():
+            _ = self.model(input_tensor)
+        
+        mean_activations = torch.mean(self.activations, dim=1).squeeze(0)
+        
+        act_max = mean_activations.max()
+        act_min = mean_activations.min()
+        if act_max > act_min:
+            mean_activations = (mean_activations - act_min) / (act_max - act_min)
+            
+        return mean_activations.cpu().numpy()
+
+def save_visual_result(activation_map, original_img_path, output_path):
+    img = cv2.imread(original_img_path)
+    height, width, _ = img.shape
+
+    # Upsampling
+    activation_resized = cv2.resize(activation_map, (width, height))
+
+    activation_color = np.uint8(255 * activation_resized)
+    activation_color = cv2.applyColorMap(activation_color, cv2.COLORMAP_JET)
+    
+    superimposed_img = cv2.addWeighted(img, 0.5, activation_color, 0.5, 0)
+    cv2.imwrite(output_path, superimposed_img)
+
+
+if __name__ == '__main__':
+
+    from src.dataset import CLASSES
+
+    model = ConvolutionalNetwork()
+    model.load_state_dict(torch.load('src/model_v3.pth', map_location=torch.device('cpu')))
+    model.eval()
+    
+    target_layers = {
+        "layer2": model.conv2,
+        "layer4": model.conv4,
+        "layer6": model.conv6
+    }
+    
+    test_image_path = "images/2.jpg"
+    
+    preprocess = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    if os.path.exists(test_image_path):
+        pil_img = Image.open(test_image_path).convert('RGB')
+        input_tensor = preprocess(pil_img).unsqueeze(0)
+
+        with torch.no_grad():
+            output = model(input_tensor)
+            predicted_idx = torch.argmax(output, dim=1).item()
+            predicted_name = CLASSES[predicted_idx]
+        
+        print(f"Prediction: {predicted_name}")
+        
+        for layer_name, layer_object in target_layers.items():
+            try:
+                
+                extractor = LayerActivations(model, layer_object)
+                activation_map = extractor.get_activations(input_tensor)
+                
+                output_filename = f"activation_{predicted_name.lower()}_{layer_name}_result.jpg"
+                save_visual_result(activation_map, test_image_path, output_filename)
+                print(f" saved as: {output_filename}")
+                
+                extractor.remove_hook()
+                
+            except Exception as e:
+                print(f"mistake {layer_name}: {e}")
