@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torchvision.models as models
 
 class ConvolutionalNetwork(nn.Module):
     def __init__(self):
@@ -45,3 +46,26 @@ class ConvolutionalNetwork(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         return self.fc3(x)
+
+
+class TransferLearningNetwork(nn.Module):
+    def __init__(self, num_classes=20, pretrained=True, freeze_backbone=False):
+        super().__init__()
+        # Load a pre-trained ResNet-34 model
+        weights = models.ResNet34_Weights.DEFAULT if pretrained else None
+        self.backbone = models.resnet34(weights=weights)
+        
+        # freeze backbone for feature extraction otherwise fine-tune
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+        
+        # Replace the final fully connected layer (classifier head)
+        in_features = self.backbone.fc.in_features
+        self.backbone.fc = nn.Sequential(
+            nn.Dropout(p=0.3),  # Add dropout to reduce overfitting
+            nn.Linear(in_features, num_classes)
+        )
+
+    def forward(self, x):
+        return self.backbone(x)
