@@ -5,7 +5,7 @@ import os
 from PIL import Image
 from torchvision import transforms
 
-from src.model import ConvolutionalNetwork
+from src.model import ConvolutionalNetwork, TransferLearningNetwork
 
 class GradCAM:
     def __init__(self, model, target_layer):
@@ -14,8 +14,8 @@ class GradCAM:
         self.gradients = None
         self.activations = None
 
-        self.target_layer.register_forward_hook(self.save_activation)
-        self.target_layer.register_full_backward_hook(self.save_gradient)
+        self.forward_handle = self.target_layer.register_forward_hook(self.save_activation)
+        self.backward_handle = self.target_layer.register_full_backward_hook(self.save_gradient)
 
     def save_activation(self, module, input, output):
         self.activations = output.detach()
@@ -23,6 +23,10 @@ class GradCAM:
     def save_gradient(self, module, grad_input, grad_output):
         self.gradients = grad_output[0].detach()
         
+    def remove_hooks(self):
+        self.forward_handle.remove()
+        self.backward_handle.remove()
+
     def generate_heatmap(self, input_tensor, target_class):
         # forward pass
         model_output = self.model(input_tensor)
@@ -66,14 +70,22 @@ if __name__ == '__main__':
     from src.dataset import CLASSES
 
     model = ConvolutionalNetwork()
-    model.load_state_dict(torch.load('src/best_model.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load('src/model_v3.pth', map_location=torch.device('cpu')))
     model.eval()
+
+    print("\n--- Verfügbare Schichten (Named Modules) ---")
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.Conv2d):
+            print(f"Schicht-Name: model.{name}")
+    print("-------------------------------------------\n")
     
-    target_layer = model.conv2
+    target_layers = {
+        "layer2": model.conv2,
+        "layer4": model.conv4,
+        "layer6": model.conv6
+    }
     
-    cam_extractor = GradCAM(model, target_layer)
-    
-    test_image_path = "images/2500.jpg"
+    test_image_path = "images/1500.jpg"
     
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -99,7 +111,19 @@ if __name__ == '__main__':
         
         target_class_idx = predicted_idx 
         
-        heatmap = cam_extractor.generate_heatmap(input_tensor, target_class_idx)
-        
-        output_filename = f"gradcam_{predicted_name.lower()}_result.jpg"
-        save_visual_result(heatmap, test_image_path, output_filename)
+        for layer_name, layer_object in target_layers.items():
+            try:
+                
+                cam_extractor = GradCAM(model, layer_object)
+                
+                heatmap = cam_extractor.generate_heatmap(input_tensor, target_class_idx)
+                
+                if heatmap is not None:
+                    output_filename = f"gradcam_{predicted_name.lower()}_{layer_name}_result.jpg"
+                    save_visual_result(heatmap, test_image_path, output_filename)
+                    print(f"saved as: {output_filename}")
+                
+                cam_extractor.remove_hooks()
+
+            except Exception as e:
+                print(f"mistake {layer_name}: {e}")
