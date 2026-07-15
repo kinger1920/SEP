@@ -28,6 +28,8 @@ from PIL import Image
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from tqdm import tqdm
 
+from model import TransferLearningNetwork
+
 REJECT = -1
 
 # Official class mapping fixed by the chair (index -> species). Train your
@@ -70,9 +72,9 @@ class Model(nn.Module):
         super().__init__()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.classifier = ConvolutionalNetwork().to(self.device)
+        self.classifier = TransferLearningNetwork(num_classes=20, pretrained=True, freeze_backbone=False).to(self.device)
 
-        state_dict = torch.load("src/best_model.pth", map_location=self.device)
+        state_dict = torch.load("src/best_model_transfer.pth", map_location=self.device)
         self.classifier.load_state_dict(state_dict)
 
         # self.detector = YOLO("src/Scanner/yolo26n.pt")
