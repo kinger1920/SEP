@@ -70,7 +70,7 @@ if __name__ == '__main__':
     from src.dataset import CLASSES
 
     model = ConvolutionalNetwork()
-    model.load_state_dict(torch.load('src/model_v3.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load('src/model_v4.pth', map_location=torch.device('cpu')))
     model.eval()
 
     print("\n--- Verfügbare Schichten (Named Modules) ---")
@@ -80,9 +80,9 @@ if __name__ == '__main__':
     print("-------------------------------------------\n")
     
     target_layers = {
-        "layer2": model.conv2,
-        "layer4": model.conv4,
-        "layer6": model.conv6
+        "layer1_2": model.conv1_2,
+        "layer4_2": model.conv4_2,
+        "layer6_2": model.conv6_2
     }
     
     test_image_path = "images/1500.jpg"
