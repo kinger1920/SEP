@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import torch
 from PIL import Image
 from ultralytics import YOLO
 
@@ -7,6 +8,9 @@ CAT_ID = 15
 DOG_ID = 16
 OUTPUT_SIZE = (224, 224)
 PAD_COLOR = (255, 255, 255)
+
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 model = YOLO()
@@ -36,7 +40,28 @@ def letterbox_resize(crop, output_size=OUTPUT_SIZE, pad_color=PAD_COLOR):
     return canvas
 
 
-def crop_cat_or_dog(image, conf=0.25):
+def normalize_image(image, mean=IMAGENET_MEAN, std=IMAGENET_STD, to_tensor=True):
+
+    if isinstance(image, Image.Image):
+        img_np = np.array(image)
+    else:
+        img_np = image
+
+    if img_np is None:
+        return None
+
+    img_float = img_np.astype(np.float32) / 255.0
+
+    img_norm = (img_float - mean) / std
+
+    if not to_tensor:
+        return img_norm.astype(np.float32)
+
+    tensor = torch.from_numpy(img_norm.transpose(2, 0, 1)).float()
+    return tensor
+
+
+def crop_cat_or_dog(image, conf=0.25, normalize=False):
 
     if image is None:
         return None
@@ -84,12 +109,15 @@ def crop_cat_or_dog(image, conf=0.25):
     crop = img_np[y1:y2, x1:x2]
     crop = letterbox_resize(crop, OUTPUT_SIZE)
 
+    if normalize:
+        return normalize_image(crop)
+
     if is_pil:
         return Image.fromarray(crop)
     return crop
 
 
-def crop_cat_or_dog_segmented(image, conf=0.25):
+def crop_cat_or_dog_segmented(image, conf=0.25, normalize=False):
 
     if image is None:
         return None
@@ -138,14 +166,15 @@ def crop_cat_or_dog_segmented(image, conf=0.25):
     if x2 <= x1 or y2 <= y1:
         return None
 
-
     masked_image = np.full_like(img_np, PAD_COLOR, dtype=np.uint8)
     mask_full = best["mask"]
     masked_image[mask_full] = img_np[mask_full]
 
-
     crop = masked_image[y1:y2, x1:x2]
     crop = letterbox_resize(crop, OUTPUT_SIZE)
+
+    if normalize:
+        return normalize_image(crop)
 
     if is_pil:
         return Image.fromarray(crop)
