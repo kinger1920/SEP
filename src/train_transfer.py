@@ -15,12 +15,10 @@ model = TransferLearningNetwork(num_classes=20, pretrained=True, freeze_backbone
 num_epochs = 20
 batch_size = 16
 
-# Setup optimizer (AdamW for fine-tuning deep networks) and scheduler
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
-# Load the full dataset
 full_dataset = CustomImageDataset("../images/labels.csv", "../images")
 
 # Load stratified split information without modifying dataset.py

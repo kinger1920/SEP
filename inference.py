@@ -75,8 +75,6 @@ class Model(nn.Module):
         state_dict = torch.load("src/model_v4.pth", map_location=self.device)
         self.classifier.load_state_dict(state_dict)
 
-        # self.detector = YOLO("src/Scanner/yolo26n.pt")
-
         self.classifier.eval()
 
         self.transform = transforms.Compose([
@@ -91,12 +89,10 @@ class Model(nn.Module):
         import torch
         from src.Scanner.cat_dog_filter1 import crop_cat_or_dog
 
-        # STUFE 1 & 2: YOLO Detektion & Zuschneiden
         cropped_image = crop_cat_or_dog(image)
         if cropped_image is None:
             return -1
 
-        # STUFE 3: Klassifikation
         input_tensor = self.transform(cropped_image).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
@@ -104,7 +100,6 @@ class Model(nn.Module):
             probabilities = torch.softmax(outputs, dim=1)
             confidence, prediction = torch.max(probabilities, dim=1)
 
-        # STUFE 4: Threshold
         if confidence.item() < 0.20:
             return -1
 
@@ -112,7 +107,7 @@ class Model(nn.Module):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--image-folder", type=Path, default="validation")
+    parser.add_argument("--image-folder", type=Path, default="images")
     args = parser.parse_args()
 
     df = pd.read_csv(args.image_folder / "labels.csv")

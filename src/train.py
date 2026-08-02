@@ -47,7 +47,6 @@ for epoch in tqdm(range(num_epochs), desc='Epoch'):
         
         optimizer.step()
 
-    # Now validate on the validation set
     model.eval()
 
     total_loss = 0.0
@@ -73,10 +72,5 @@ for epoch in tqdm(range(num_epochs), desc='Epoch'):
 
     model.train()
     scheduler.step()
-
-# plt.plot(losses)
-# plt.xlabel('Step')
-# plt.ylabel('Loss')
-# plt.show()
 
 torch.save(model.state_dict(), "model_v5.pth")
