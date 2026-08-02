@@ -5,6 +5,7 @@ import os
 from PIL import Image
 from torchvision import transforms
 
+from src.Scanner.cat_dog_filter1 import crop_cat_or_dog_segmented
 from src.model import ConvolutionalNetwork, TransferLearningNetwork
 
 class GradCAM:
@@ -51,9 +52,17 @@ class GradCAM:
 
             return cam.cpu().numpy()
         
-def save_visual_result(heatmap, original_img_path, output_path):
-    img = cv2.imread(original_img_path)
-    height, width, _ = img.shape
+def save_visual_result(heatmap, base_img_pil, output_path):
+    if not isinstance(base_img_pil, Image.Image):
+        if isinstance(base_img_pil, np.ndarray):
+             base_img_pil = Image.fromarray(base_img_pil.astype('uint8'), 'RGB')
+        else:
+             raise TypeError("base_img_pil needs to be pil or numpy.")
+        
+    img_np = np.array(base_img_pil, dtype=np.uint8)
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    
+    height, width, _ = img_bgr.shape
 
     #upsampling
     heatmap_resized = cv2.resize(heatmap, (width, height))
@@ -62,7 +71,7 @@ def save_visual_result(heatmap, original_img_path, output_path):
     heatmap_color = cv2.applyColorMap(heatmap_color, cv2.COLORMAP_JET)
     
     # 60% original, 40% heatmap
-    superimposed_img = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
+    superimposed_img = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
     cv2.imwrite(output_path, superimposed_img)
 
 if __name__ == '__main__':
@@ -91,7 +100,8 @@ if __name__ == '__main__':
 
     if os.path.exists(test_image_path):
         pil_img = Image.open(test_image_path).convert('RGB')
-        input_tensor = preprocess(pil_img).unsqueeze(0)
+        cropped_img = crop_cat_or_dog_segmented(pil_img)
+        input_tensor = preprocess(cropped_img).unsqueeze(0)
         input_tensor.requires_grad_()
 
 
@@ -116,7 +126,7 @@ if __name__ == '__main__':
                 
                 if heatmap is not None:
                     output_filename = f"gradcam_{predicted_name.lower()}_{layer_name}_result.jpg"
-                    save_visual_result(heatmap, test_image_path, output_filename)
+                    save_visual_result(heatmap, cropped_img, output_filename)
                     print(f"saved as: {output_filename}")
                 
                 cam_extractor.remove_hooks()

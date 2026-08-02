@@ -6,6 +6,7 @@ from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
 
+from src.Scanner.cat_dog_filter1 import crop_cat_or_dog_segmented
 from src.model import ConvolutionalNetwork, TransferLearningNetwork
 
 class OcclusionSensitivity:
@@ -18,6 +19,13 @@ class OcclusionSensitivity:
         self.model.eval()
         
         _, _, h, w = input_tensor.shape
+        device = input_tensor.device
+
+        white_r = (1.0 - 0.485) / 0.229
+        white_g = (1.0 - 0.456) / 0.224
+        white_b = (1.0 - 0.406) / 0.225
+        
+        occlusion_value = torch.tensor([white_r, white_g, white_b], device=device).view(1, 3, 1, 1)
         
         # Baseline
         with torch.no_grad():
@@ -34,7 +42,7 @@ class OcclusionSensitivity:
                 for j, x in enumerate(range(0, w - self.patch_size + 1, self.stride)):
                     
                     occluded_img = input_tensor.clone()
-                    occluded_img[:, :, y:y+self.patch_size, x:x+self.patch_size] = 0.0
+                    occluded_img[:, :, y:y+self.patch_size, x:x+self.patch_size] = occlusion_value
                     
                     out = self.model(occluded_img)
                     prob = torch.softmax(out, dim=1)[0, target_class].item()
@@ -48,9 +56,17 @@ class OcclusionSensitivity:
             
         return heatmap
 
-def save_visual_result(heatmap, original_img_path, output_path):
-    img = cv2.imread(original_img_path)
-    height, width, _ = img.shape
+def save_visual_result(heatmap, base_img_pil, output_path):
+    if not isinstance(base_img_pil, Image.Image):
+        if isinstance(base_img_pil, np.ndarray):
+             base_img_pil = Image.fromarray(base_img_pil.astype('uint8'), 'RGB')
+        else:
+             raise TypeError("base_img_pil needs to be pil or numpy")
+        
+    img_np = np.array(base_img_pil, dtype=np.uint8)
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    
+    height, width, _ = img_bgr.shape
 
     # Upsampling
     heatmap_resized = cv2.resize(heatmap, (width, height), interpolation=cv2.INTER_CUBIC)
@@ -59,7 +75,7 @@ def save_visual_result(heatmap, original_img_path, output_path):
     heatmap_color = cv2.applyColorMap(heatmap_color, cv2.COLORMAP_JET)
     
     # 60% Original, 40% Heatmap
-    superimposed_img = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
+    superimposed_img = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
     cv2.imwrite(output_path, superimposed_img)
 
 if __name__ == '__main__':
@@ -80,14 +96,20 @@ if __name__ == '__main__':
 
     if os.path.exists(test_image_path):
         pil_img = Image.open(test_image_path).convert('RGB')
-        input_tensor = preprocess(pil_img).unsqueeze(0)
 
-        with torch.no_grad():
-            output = model(input_tensor)
-            probabilities = torch.softmax(output, dim=1)
-            predicted_idx = torch.argmax(probabilities, dim=1).item()
-            confidence = probabilities[0][predicted_idx].item() * 100
-            predicted_name = CLASSES[predicted_idx]
+        cropped_img = crop_cat_or_dog_segmented(pil_img)
+        
+        if cropped_img is None:
+            print("no animal")
+        else:
+            input_tensor = preprocess(cropped_img).unsqueeze(0)
+
+            with torch.no_grad():
+                output = model(input_tensor)
+                probabilities = torch.softmax(output, dim=1)
+                predicted_idx = torch.argmax(probabilities, dim=1).item()
+                confidence = probabilities[0][predicted_idx].item() * 100
+                predicted_name = CLASSES[predicted_idx]
         
         print(f"Prediction: {predicted_name} (class {predicted_idx})")
         print(f"Confidence: {confidence:.2f}%")
@@ -96,5 +118,5 @@ if __name__ == '__main__':
         heatmap = occlusion_extractor.generate_heatmap(input_tensor, predicted_idx)
         
         output_filename = f"occlusion_{predicted_name.lower()}_result.jpg"
-        save_visual_result(heatmap, test_image_path, output_filename)
-        print(f" saves as: {output_filename}")
+        save_visual_result(heatmap, cropped_img, output_filename)
+        print(f" saved as: {output_filename}")

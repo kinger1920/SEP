@@ -5,6 +5,7 @@ import os
 from PIL import Image
 from torchvision import transforms
 
+from src.Scanner.cat_dog_filter1 import crop_cat_or_dog_segmented
 from src.model import ConvolutionalNetwork
 
 class LayerActivations:
@@ -35,9 +36,18 @@ class LayerActivations:
             
         return mean_activations.cpu().numpy()
 
-def save_visual_result(activation_map, original_img_path, output_path):
-    img = cv2.imread(original_img_path)
-    height, width, _ = img.shape
+def save_visual_result(activation_map, base_img_pil, output_path):
+    if not isinstance(base_img_pil, Image.Image):
+        if isinstance(base_img_pil, np.ndarray):
+             base_img_pil = Image.fromarray(base_img_pil.astype('uint8'), 'RGB')
+        else:
+             raise TypeError("base_img_pil needs to be pil or numpy")
+
+
+    img_np = np.array(base_img_pil, dtype=np.uint8)
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+
+    height, width, _ = img_bgr.shape
 
     # Upsampling
     activation_resized = cv2.resize(activation_map, (width, height))
@@ -45,7 +55,7 @@ def save_visual_result(activation_map, original_img_path, output_path):
     activation_color = np.uint8(255 * activation_resized)
     activation_color = cv2.applyColorMap(activation_color, cv2.COLORMAP_JET)
     
-    superimposed_img = cv2.addWeighted(img, 0.5, activation_color, 0.5, 0)
+    superimposed_img = cv2.addWeighted(img_bgr, 0.5, activation_color, 0.5, 0)
     cv2.imwrite(output_path, superimposed_img)
 
 
@@ -73,12 +83,18 @@ if __name__ == '__main__':
 
     if os.path.exists(test_image_path):
         pil_img = Image.open(test_image_path).convert('RGB')
-        input_tensor = preprocess(pil_img).unsqueeze(0)
 
-        with torch.no_grad():
-            output = model(input_tensor)
-            predicted_idx = torch.argmax(output, dim=1).item()
-            predicted_name = CLASSES[predicted_idx]
+        cropped_img = crop_cat_or_dog_segmented(pil_img)
+        
+        if cropped_img is None:
+            print("Fehler: YOLO konnte kein Tier finden.")
+        else:
+            input_tensor = preprocess(cropped_img).unsqueeze(0)
+
+            with torch.no_grad():
+                output = model(input_tensor)
+                predicted_idx = torch.argmax(output, dim=1).item()
+                predicted_name = CLASSES[predicted_idx]
         
         print(f"Prediction: {predicted_name}")
         
@@ -89,7 +105,7 @@ if __name__ == '__main__':
                 activation_map = extractor.get_activations(input_tensor)
                 
                 output_filename = f"activation_{predicted_name.lower()}_{layer_name}_result.jpg"
-                save_visual_result(activation_map, test_image_path, output_filename)
+                save_visual_result(activation_map, cropped_img, output_filename)
                 print(f" saved as: {output_filename}")
                 
                 extractor.remove_hook()
