@@ -79,7 +79,7 @@ if __name__ == '__main__':
     target_layer = model.backbone.layer4[-1]
     fc_layer = model.backbone.fc
     
-    test_image_path = "images/2.jpg"
+    test_image_path = "images/1500.jpg"
     
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),

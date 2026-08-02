@@ -67,10 +67,10 @@ if __name__ == '__main__':
     from src.dataset import CLASSES
 
     model = ConvolutionalNetwork()
-    model.load_state_dict(torch.load('src/model_v3.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load('src/model_v4.pth', map_location=torch.device('cpu')))
     model.eval()
     
-    test_image_path = "images/2.jpg"
+    test_image_path = "images/1500.jpg"
     
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -97,4 +97,4 @@ if __name__ == '__main__':
         
         output_filename = f"occlusion_{predicted_name.lower()}_result.jpg"
         save_visual_result(heatmap, test_image_path, output_filename)
-        print(f"-> Erfolgreich gespeichert als: {output_filename}")
+        print(f" saves as: {output_filename}")

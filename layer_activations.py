@@ -54,16 +54,16 @@ if __name__ == '__main__':
     from src.dataset import CLASSES
 
     model = ConvolutionalNetwork()
-    model.load_state_dict(torch.load('src/model_v3.pth', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load('src/model_v4.pth', map_location=torch.device('cpu')))
     model.eval()
     
     target_layers = {
-        "layer2": model.conv2,
-        "layer4": model.conv4,
-        "layer6": model.conv6
+        "layer2": model.conv2_2,
+        "layer4": model.conv4_2,
+        "layer6": model.conv6_2
     }
     
-    test_image_path = "images/2.jpg"
+    test_image_path = "images/1500.jpg"
     
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),

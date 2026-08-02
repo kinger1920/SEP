@@ -73,11 +73,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load('src/model_v4.pth', map_location=torch.device('cpu')))
     model.eval()
 
-    print("\n--- Verfügbare Schichten (Named Modules) ---")
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Conv2d):
-            print(f"Schicht-Name: model.{name}")
-    print("-------------------------------------------\n")
+   
     
     target_layers = {
         "layer1_2": model.conv1_2,
